@@ -60,17 +60,6 @@ function baseUrl(req) {
   return `${proto}://${host}`;
 }
 
-// Transient error hai? (bot-check / rate-limit / network) — inse retry karne se fayda ho sakta hai.
-// "Video unavailable" jaise definitive errors par retry waste hai.
-function isRetryable(message) {
-  const m = String(message || '');
-  if (/sign in|not a bot|confirm you|try again later|temporarily|too many|rate.?limit|busy/i.test(m)) return true;
-  if (/timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up|fetch failed|network|non 2xx|status code (4\d\d|5\d\d)/i.test(m)) return true;
-  return false;
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 // Technical error ko bot/user ke liye saaf message me badalta hai
 function friendlyError(message) {
   const m = String(message || '');
@@ -179,24 +168,14 @@ async function handle(req, res, type) {
   try {
     let basic;
     let lastErr;
-    // Har client try karo; sab transient (bot-check) se fail ho to thoda ruk ke dobara.
-    // Success path par koi extra latency nahi (pehle hi pass me mil jaata hai).
-    let definitive = false;
-    for (let pass = 0; pass < 3 && !basic && !definitive; pass++) {
-      for (const client of META_CLIENTS) {
-        try {
-          const { info } = await getInfo(videoId, client);
-          basic = assertPlayable(info);
-          break;
-        } catch (e) {
-          lastErr = e;
-          if (!isRetryable(e?.message)) {
-            definitive = true;
-            break;
-          }
-        }
+    for (const client of META_CLIENTS) {
+      try {
+        const { info } = await getInfo(videoId, client);
+        basic = assertPlayable(info);
+        break;
+      } catch (e) {
+        lastErr = e;
       }
-      if (!basic && !definitive && pass < 2) await sleep(1200);
     }
     if (!basic) throw lastErr || new Error('Failed to fetch video info');
 
@@ -236,16 +215,14 @@ async function handleDownload(req, res) {
   if (!videoId) return json(res, 400, false, { error: 'Invalid YouTube url/id' });
 
   try {
-    // Har client par fresh download stream (kharab client skip). Transient fail par thoda ruk ke dobara.
+    // Har client par fresh download stream (kharab client skip). 2 baar poori koshish.
     let opened = null;
     let lastErr = null;
-    for (let attempt = 0; attempt < 3 && !opened; attempt++) {
+    for (let attempt = 0; attempt < 2 && !opened; attempt++) {
       try {
         opened = await openDownloadStream(videoId, type);
       } catch (e) {
         lastErr = e;
-        if (attempt < 2 && isRetryable(e?.message)) await sleep(1000);
-        else break;
       }
     }
     if (!opened) throw lastErr || new Error('No playable format found');
