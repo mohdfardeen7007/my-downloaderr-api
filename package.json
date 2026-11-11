@@ -8,6 +8,6 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.14.4"
+    "axios": "^1.7.9"
   }
 }
