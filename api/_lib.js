@@ -7,7 +7,19 @@
 // warna bot ke IP se official URL 403 de deta hai.
 
 const API_KEY = process.env.API_KEY || '';
-const YT_COOKIE = process.env.YT_COOKIE || '';
+
+// youtubei.js SAPISID cookie se `Authorization: SAPISIDHASH` header banata hai
+// jo player API par 400 deta hai, isliye SAPISID hata dete hain — baaki
+// SID/SSID/__Secure-*PSID auth cookies se account session chalta rehta hai.
+function sanitizeCookie(raw) {
+  return String(raw || '')
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((s) => !/^SAPISID=/i.test(s))
+    .join('; ');
+}
+const YT_COOKIE = sanitizeCookie(process.env.YT_COOKIE || '');
 
 // Kaunse client se URL milega (kuch clients SABR-only dete hain, koi URL nahi).
 // Kuch clients ka URL ban to jaata hai par fetch par 403 deta hai, isliye
