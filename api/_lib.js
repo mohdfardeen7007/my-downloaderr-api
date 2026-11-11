@@ -8,6 +8,22 @@
 
 const API_KEY = process.env.API_KEY || '';
 
+// Optional proxy: PROXY_URL set karo to YouTube ki saari requests ek trusted IP
+// (residential/mobile proxy) se jaati hain. Vercel jaise datacenter IP par YouTube
+// "Sign in to confirm you're not a bot" deta hai — proxy usse hata deta hai.
+// ZAROORI: player request aur googlevideo download — dono EK HI IP se honi chahiye
+// (googlevideo IP-locked hai), isliye sticky IP wala proxy use karo (rotating nahi).
+const PROXY_URL = String(process.env.PROXY_URL || '').trim();
+if (PROXY_URL) {
+  try {
+    const { ProxyAgent, setGlobalDispatcher } = require('undici');
+    setGlobalDispatcher(new ProxyAgent(PROXY_URL));
+    console.log('[proxy] enabled:', PROXY_URL.replace(/\/\/[^@/]*@/, '//***@'));
+  } catch (e) {
+    console.log('[proxy] init failed:', e?.message || e);
+  }
+}
+
 // NOTE: Account cookies (YT_COOKIE) intentionally use nahi karte.
 // Test karne par pata chala ki cookie bhejne se YouTube account-specific
 // "Video unavailable" deta hai (logged-in session par zyada videos block hote hain),

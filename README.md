@@ -77,12 +77,26 @@ Isliye direct `googlevideo` URL return nahi karte — wo bot ke IP par fail hota
 | Name | Default | Kaam |
 | --- | --- | --- |
 | `API_KEY` | — (required) | Aapki API ko protect karta hai |
+| `PROXY_URL` | — (optional) | Trusted proxy (residential/mobile). Datacenter IP (Vercel) par YouTube ka *"Sign in to confirm you're not a bot"* isse hatta hai. |
 
 > **Cookies kyun nahi?** Logged-in account cookies add karne par YouTube zyada videos par
 > *"Video unavailable"* deta hai (account-specific block), jabki anonymous extraction
 > zyada videos par chalti hai. Isliye API jaan-boojh kar bina cookie chalti hai.
 
 `YT_COOKIE` env agar Vercel par set hai to usse **delete** kar do (ab use nahi hoti).
+
+### `PROXY_URL` (bot-check fix)
+
+Vercel jaise **datacenter IP** se YouTube zyada videos par *"Sign in to confirm you're not a bot"* deta hai. Fix: ek **trusted proxy** use karo.
+
+1. Koi residential/mobile proxy le lo (ya datacenter proxy jo YouTube na block kare).
+2. **Sticky IP zaroori hai** — `googlevideo` URLs usi IP se chalti hain jisne banayi.
+   Player request aur download dono ko **same IP** se jaana chahiye, isliye **rotating proxy
+   (har request naya IP) mat lagao** — sticky-session (kuch minute same IP) wala proxy lo.
+   Bahut providers `user-session-abc123:pass` type username se sticky session dete hain.
+3. Vercel → Settings → Environment Variables me `PROXY_URL` add karo (format: `http://user:pass@host:port`), phir redeploy.
+
+Sirf `http`/`https` proxy supported hai (SOCKS5 nahi). Set na karo to API seedha (datacenter IP) se chalti hai.
 
 ## Local test
 
