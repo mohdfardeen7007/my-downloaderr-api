@@ -1,0 +1,13 @@
+{
+  "name": "my-downloader-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simple YouTube audio/video downloader API for WhatsApp bots (Vercel serverless)",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@distube/ytdl-core": "^4.14.4"
+  }
+}
