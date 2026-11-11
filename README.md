@@ -17,14 +17,33 @@ YouTube audio/video downloader API (Vercel serverless, Node.js). Bot ke `play`/`
   "result": {
     "title": "Song name",
     "thumbnail": "https://...",
-    "duration": 210,
-    "quality": "128kbps",
+    "duration": 213,
+    "type": "audio",
+    "source": "Knight",
     "downloadUrl": "https://..."
   }
 }
 ```
 
 Yeh shape bilkul `play.js` ke `data.status` + `data.result.downloadUrl` se match karta hai.
+
+## Kaise kaam karta hai
+
+Server khud YouTube se extract nahi karta (cloud IPs YouTube block karta hai). Isliye yeh API ek
+**working downloader API ko call karta hai** aur uska result aapke bot ko de deta hai:
+
+- **Primary**: Knight API — `KNIGHT_API_URL` (default `https://knightbotapi.stream`), `KNIGHT_API_KEY` (default `knight`)
+- **Fallback (audio)**: Prexzy
+
+`googlevideo.com` waale (IP-locked) links automatically reject ho jate hain.
+
+## Environment Variables
+
+| Name | Default | Kaam |
+| --- | --- | --- |
+| `API_KEY` | — (required) | Aapki API ko protect karta hai |
+| `KNIGHT_API_URL` | `https://knightbotapi.stream` | Primary provider base URL |
+| `KNIGHT_API_KEY` | `knight` | Primary provider key |
 
 ## Local test
 
@@ -42,7 +61,7 @@ vercel login
 vercel --prod
 ```
 
-Deploy ke baad Vercel Dashboard → Project → Settings → Environment Variables me `API_KEY` add karo, phir dobara deploy karo.
+Deploy ke baad Vercel Dashboard → Project → Settings → Environment Variables me `API_KEY` (aur chaho to `KNIGHT_API_URL`/`KNIGHT_API_KEY`) add karo, phir redeploy karo.
 
 ## Bot me kaise use kare
 
@@ -55,12 +74,3 @@ const response = await axios.get(
 const data = response.data;
 if (!data.status || !data.result?.downloadUrl) throw new Error('API failed');
 ```
-
-## Zaroori note: IP-lock problem
-
-`ytdl-core` jo `downloadUrl` deta hai woh `googlevideo.com` ka hota hai aur **aapke server IP ke liye locked** hota hai. Bot ke user ke phone se direct download fail ho sakta hai.
-
-Isliye bot me `lib/api.js` ke `isIpLockedCdn` check ki tarah guard rakho, ya production me yeh options use karo:
-
-- **Stream proxy**: file ko server se stream karke ek apna URL do (Vercel par response size limit ka dhyan rakho).
-- **yt-dlp (VPS)**: server par `yt-dlp` se download karke apni storage se serve karo — sabse reliable.
