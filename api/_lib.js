@@ -125,34 +125,25 @@ function bestThumbnail(thumbs) {
   return sorted[0]?.url || null;
 }
 
-// Ek client ke saath direct googlevideo URL nikalta hai
-async function resolveUrl(videoId, type, client) {
-  const { yt, info } = await getInfo(videoId, client);
-  assertPlayable(info);
-  const options =
-    type === 'video'
-      ? { type: 'video+audio', quality: 'best', format: 'mp4' }
-      : { type: 'audio', quality: 'best', format: 'mp4' };
-  const format = info.chooseFormat(options);
-  const url = await format.decipher(yt.session.player);
-  if (!url) throw new Error('Could not decipher streaming url');
-  return { info, url, format };
-}
-
-// Har client ka URL generate karke YouTube se fetch karta hai.
-// Pehla client jiska fetch 200/206 de wahi return hota hai (403 wale skip ho jaate hain).
-async function openStream(videoId, type, rangeHeader) {
+// Ek client ke saath googlevideo se download stream kholta hai (youtubei.js ke through).
+// youtubei.js khud `cpn` (client playback nonce) + YouTube ka `range` param lagata hai,
+// jisse `n`-param throttling (beech me stall) nahi hoti. Pehla chunk yahin read karte hain
+// taake kharab client (403/error) turant skip ho jaaye.
+async function openDownloadStream(videoId, type) {
   const clients = CLIENT_PLAN[type] || CLIENT_PLAN.audio;
+  const yt = await getClient();
   let lastErr = null;
   for (const client of clients) {
     try {
-      const { url } = await resolveUrl(videoId, type, client);
-      const headers = { 'User-Agent': 'Mozilla/5.0' };
-      if (rangeHeader) headers.Range = rangeHeader;
-      const r = await fetch(url, { headers, redirect: 'follow' });
-      if (r.ok || r.status === 206) return r;
-      lastErr = new Error(`googlevideo responded ${r.status} (${client})`);
-      try { await r.body?.cancel(); } catch {}
+      const stream = await yt.download(videoId, {
+        type: type === 'video' ? 'video+audio' : 'audio',
+        quality: 'best',
+        format: 'mp4',
+        client,
+      });
+      const reader = stream.getReader();
+      const first = await reader.read();
+      return { reader, first };
     } catch (e) {
       lastErr = e;
     }
@@ -219,32 +210,24 @@ async function handleDownload(req, res) {
   if (!videoId) return json(res, 400, false, { error: 'Invalid YouTube url/id' });
 
   try {
-    // Har client ka fresh URL generate + fetch (403 wale clients skip). 2 baar poori koshish.
-    let upstream = null;
+    // Har client par fresh download stream (kharab client skip). 2 baar poori koshish.
+    let opened = null;
     let lastErr = null;
-    for (let attempt = 0; attempt < 2 && !upstream; attempt++) {
+    for (let attempt = 0; attempt < 2 && !opened; attempt++) {
       try {
-        upstream = await openStream(videoId, type, req.headers.range);
+        opened = await openDownloadStream(videoId, type);
       } catch (e) {
         lastErr = e;
       }
     }
-    if (!upstream) throw lastErr || new Error('No playable format found');
+    if (!opened) throw lastErr || new Error('No playable format found');
 
-    res.statusCode = upstream.status;
+    const { reader, first } = opened;
+    res.statusCode = 200;
     res.setHeader('Content-Type', type === 'video' ? 'video/mp4' : 'audio/mp4');
-    res.setHeader('Accept-Ranges', 'bytes');
-    const len = upstream.headers.get('content-length');
-    if (len) res.setHeader('Content-Length', len);
-    const cr = upstream.headers.get('content-range');
-    if (cr) res.setHeader('Content-Range', cr);
     res.setHeader('Content-Disposition', `attachment; filename="${videoId}.${type === 'video' ? 'mp4' : 'm4a'}"`);
 
-    if (!upstream.body) {
-      res.end();
-      return;
-    }
-    const reader = upstream.body.getReader();
+    if (!first.done && first.value) await writeChunk(res, Buffer.from(first.value));
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
