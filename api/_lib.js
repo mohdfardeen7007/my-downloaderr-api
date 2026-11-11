@@ -8,18 +8,10 @@
 
 const API_KEY = process.env.API_KEY || '';
 
-// youtubei.js SAPISID cookie se `Authorization: SAPISIDHASH` header banata hai
-// jo player API par 400 deta hai, isliye SAPISID hata dete hain — baaki
-// SID/SSID/__Secure-*PSID auth cookies se account session chalta rehta hai.
-function sanitizeCookie(raw) {
-  return String(raw || '')
-    .split(';')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .filter((s) => !/^SAPISID=/i.test(s))
-    .join('; ');
-}
-const YT_COOKIE = sanitizeCookie(process.env.YT_COOKIE || '');
+// NOTE: Account cookies (YT_COOKIE) intentionally use nahi karte.
+// Test karne par pata chala ki cookie bhejne se YouTube account-specific
+// "Video unavailable" deta hai (logged-in session par zyada videos block hote hain),
+// jabki bina cookie anonymous extraction zyada videos par chalta hai.
 
 // Kaunse client se URL milega (kuch clients SABR-only dete hain, koi URL nahi).
 // Kuch clients ka URL ban to jaata hai par fetch par 403 deta hai, isliye
@@ -91,11 +83,7 @@ function getClient() {
   if (!clientPromise) {
     clientPromise = (async () => {
       const { Innertube } = await import('youtubei.js');
-      const cfg = { retrieve_player: true, lang: 'en', location: 'US' };
-      // Optional: YouTube cookies (YT_COOKIE env) — set karne par "sign in to confirm
-      // you're not a bot" ka issue lagbhag khatam ho jaata hai.
-      if (YT_COOKIE) cfg.cookie = YT_COOKIE;
-      return Innertube.create(cfg);
+      return Innertube.create({ retrieve_player: true, lang: 'en', location: 'US' });
     })();
     clientPromise.catch(() => {
       clientPromise = null;
