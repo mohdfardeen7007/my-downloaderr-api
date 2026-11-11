@@ -9,10 +9,11 @@
 const API_KEY = process.env.API_KEY || '';
 
 // Kaunse client se URL milega (kuch clients SABR-only dete hain, koi URL nahi).
-// Pehla working client chuna jata hai.
+// Kuch clients ka URL ban to jaata hai par fetch par 403 deta hai, isliye
+// download ke waqt har client ka URL generate + fetch dono try hote hain.
 const CLIENT_PLAN = {
-  audio: ['ANDROID_VR', 'IOS', 'VISIONOS', 'TV_SIMPLY'],
-  video: ['ANDROID', 'ANDROID_VR', 'TV_SIMPLY'],
+  audio: ['IOS', 'VISIONOS', 'ANDROID_VR', 'ANDROID'],
+  video: ['IOS', 'VISIONOS', 'ANDROID', 'ANDROID_VR'],
 };
 const META_CLIENTS = ['ANDROID_VR', 'IOS', 'ANDROID', 'VISIONOS', 'TV_SIMPLY'];
 
@@ -138,13 +139,20 @@ async function resolveUrl(videoId, type, client) {
   return { info, url, format };
 }
 
-// Har client try karke pehla working URL return karta hai
-async function resolveUrlAny(videoId, type) {
+// Har client ka URL generate karke YouTube se fetch karta hai.
+// Pehla client jiska fetch 200/206 de wahi return hota hai (403 wale skip ho jaate hain).
+async function openStream(videoId, type, rangeHeader) {
   const clients = CLIENT_PLAN[type] || CLIENT_PLAN.audio;
-  let lastErr;
+  let lastErr = null;
   for (const client of clients) {
     try {
-      return await resolveUrl(videoId, type, client);
+      const { url } = await resolveUrl(videoId, type, client);
+      const headers = { 'User-Agent': 'Mozilla/5.0' };
+      if (rangeHeader) headers.Range = rangeHeader;
+      const r = await fetch(url, { headers, redirect: 'follow' });
+      if (r.ok || r.status === 206) return r;
+      lastErr = new Error(`googlevideo responded ${r.status} (${client})`);
+      try { await r.body?.cancel(); } catch {}
     } catch (e) {
       lastErr = e;
     }
@@ -211,19 +219,14 @@ async function handleDownload(req, res) {
   if (!videoId) return json(res, 400, false, { error: 'Invalid YouTube url/id' });
 
   try {
-    // 403 aane par (IP mismatch / expired URL) ek baar fresh URL se retry
+    // Har client ka fresh URL generate + fetch (403 wale clients skip). 2 baar poori koshish.
     let upstream = null;
     let lastErr = null;
     for (let attempt = 0; attempt < 2 && !upstream; attempt++) {
-      const { url } = await resolveUrlAny(videoId, type);
-      const headers = { 'User-Agent': 'Mozilla/5.0' };
-      if (req.headers.range) headers.Range = req.headers.range;
-      const r = await fetch(url, { headers, redirect: 'follow' });
-      if (r.ok || r.status === 206) {
-        upstream = r;
-      } else {
-        lastErr = new Error(`googlevideo responded ${r.status}`);
-        try { await r.body?.cancel(); } catch { /* ignore */ }
+      try {
+        upstream = await openStream(videoId, type, req.headers.range);
+      } catch (e) {
+        lastErr = e;
       }
     }
     if (!upstream) throw lastErr || new Error('No playable format found');
