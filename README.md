@@ -8,8 +8,11 @@ Self-hosted YouTube audio/video downloader API (Vercel serverless, Node.js). Bot
 
 | Endpoint | Kaam | Example |
 | --- | --- | --- |
-| `GET /api/ytmp3` | Audio (m4a 128kbps) download link | `/api/ytmp3?apikey=KEY&url=https://youtu.be/xxxx` |
-| `GET /api/ytmp4` | Video (mp4, progressive) download link | `/api/ytmp4?apikey=KEY&url=https://youtu.be/xxxx` |
+| `GET /api/ytmp3` | Audio info + download link | `/api/ytmp3?apikey=KEY&url=https://youtu.be/xxxx` |
+| `GET /api/ytmp4` | Video info + download link | `/api/ytmp4?apikey=KEY&url=https://youtu.be/xxxx` |
+| `GET /api/dl` | Actual media stream (downloader) | `/api/ytmp3` se mila `downloadUrl` |
+
+Asli file `/api/dl` se aati hai — bot usi `downloadUrl` ko download karta hai.
 
 ## Response
 
@@ -21,14 +24,15 @@ Self-hosted YouTube audio/video downloader API (Vercel serverless, Node.js). Bot
     "thumbnail": "https://...",
     "duration": 213,
     "source": "YouTube",
-    "quality": "128kbps",
+    "quality": "audio",
     "type": "audio",
-    "downloadUrl": "https://..."
+    "downloadUrl": "https://your-project.vercel.app/api/dl?apikey=KEY&v=VIDEOID&type=audio"
   }
 }
 ```
 
 Yeh shape bilkul `play.js` ke `data.status` + `data.result.downloadUrl` se match karta hai.
+(`downloadUrl` hamare hi `/api/dl` par point karta hai — neeche wajah likhi hai.)
 
 ## Error response
 
@@ -53,10 +57,20 @@ Fail hone par saaf message milta hai (`detail` me technical error hota hai):
 
 ## Kaise kaam karta hai
 
-Server `@distube/ytdl-core` se seedha YouTube se audio/video format nikalta hai aur uska direct URL deta hai.
+Server `youtubei.js` (YouTube InnerTube) se seedha YouTube se format nikalta hai.
 
-- **Audio**: m4a (itag 140, 128kbps) — WhatsApp/bot ke liye sabse compatible
-- **Video**: progressive format (audio+video ek hi file) — isliye ffmpeg ki zarurat nahi
+- **Audio**: m4a (itag 140, ~128kbps) — WhatsApp/bot ke liye sabse compatible
+- **Video**: progressive format (audio+video ek hi file, aam taur par 360p) — isliye ffmpeg ki zarurat nahi
+- Client fallback: kuch YouTube clients sirf SABR-only data dete hain jisme direct URL nahi hota, isliye har type ke liye kai clients try kiye jaate hain.
+
+### Download `/api/dl` se kyun hota hai?
+
+YouTube ke `googlevideo.com` URLs **usi IP se chalti hain jisne unhe banaya** — kisi doosre IP se fetch karo to `403`. Bot apni machine se download karta hai (alag IP), isliye:
+
+1. `/api/ytmp3` sirf info deta hai aur `downloadUrl` hamare `/api/dl` par bhejta hai.
+2. Jab bot `/api/dl` hit karta hai, hum **usi request me** YouTube se fresh URL banate hain aur wahi se bytes laakar bot ko stream kar dete hain (IP match ho jaata hai).
+
+Isliye direct `googlevideo` URL return nahi karte — wo bot ke IP par fail hota hai.
 
 ## Environment Variables
 
