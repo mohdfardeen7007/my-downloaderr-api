@@ -7,6 +7,7 @@
 // warna bot ke IP se official URL 403 de deta hai.
 
 const API_KEY = process.env.API_KEY || '';
+const YT_COOKIE = process.env.YT_COOKIE || '';
 
 // Kaunse client se URL milega (kuch clients SABR-only dete hain, koi URL nahi).
 // Kuch clients ka URL ban to jaata hai par fetch par 403 deta hai, isliye
@@ -78,7 +79,11 @@ function getClient() {
   if (!clientPromise) {
     clientPromise = (async () => {
       const { Innertube } = await import('youtubei.js');
-      return Innertube.create({ retrieve_player: true, lang: 'en', location: 'US' });
+      const cfg = { retrieve_player: true, lang: 'en', location: 'US' };
+      // Optional: YouTube cookies (YT_COOKIE env) — set karne par "sign in to confirm
+      // you're not a bot" ka issue lagbhag khatam ho jaata hai.
+      if (YT_COOKIE) cfg.cookie = YT_COOKIE;
+      return Innertube.create(cfg);
     })();
     clientPromise.catch(() => {
       clientPromise = null;

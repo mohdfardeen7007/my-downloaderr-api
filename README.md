@@ -77,6 +77,15 @@ Isliye direct `googlevideo` URL return nahi karte — wo bot ke IP par fail hota
 | Name | Default | Kaam |
 | --- | --- | --- |
 | `API_KEY` | — (required) | Aapki API ko protect karta hai |
+| `YT_COOKIE` | — (optional) | YouTube cookies. Vercel ke datacenter IP par YouTube kuch videos ke liye *"Sign in to confirm you're not a bot"* maangta hai. Cookies set karne par yeh lagbhag khatam ho jaata hai. |
+
+### `YT_COOKIE` kaise set kare?
+
+1. Browser me YouTube par login karo.
+2. Ek "Get cookies.txt" extension (ya DevTools → Network tab me koi bhi `youtubei/v1/player` request → Cookie header) se cookies copy karo.
+3. Poori cookie string ko ek line me Vercel → Settings → Environment Variables me `YT_COOKIE` par paste karo, phir redeploy.
+
+Cookies na ho to bhi API chalti hai — bas kuch video requests par "YouTube ne request block kar di" aa sakta hai.
 
 ## Local test
 
